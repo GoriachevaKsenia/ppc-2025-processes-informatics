@@ -1,9 +1,5 @@
 #pragma once
 
-#include <mpi.h>
-
-#include <vector>
-
 #include "goriacheva_k_strassen_algorithm/common/include/common.hpp"
 #include "task/include/task.hpp"
 

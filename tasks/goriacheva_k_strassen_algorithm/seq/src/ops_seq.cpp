@@ -1,5 +1,7 @@
 #include "goriacheva_k_strassen_algorithm/seq/include/ops_seq.hpp"
 
+#include <cstddef>
+
 #include "goriacheva_k_strassen_algorithm/common/include/common.hpp"
 
 namespace goriacheva_k_strassen_algorithm {

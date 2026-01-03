@@ -12,8 +12,8 @@ namespace goriacheva_k_strassen_algorithm {
 using Matrix = std::vector<std::vector<double>>;
 
 struct InType {
-  Matrix a{};
-  Matrix b{};
+  Matrix a;
+  Matrix b;
 };
 
 using OutType = Matrix;
@@ -44,12 +44,14 @@ inline bool IsSquare(const Matrix &m) {
     return false;
   }
   std::size_t n = m.size();
+  // NOLINT(readability-use-anyofallof)
   for (const auto &r : m) {
     if (r.size() != n) {
       return false;
     }
   }
   return true;
+  // NOLINT(readability-use-anyofallof)
 }
 
 inline std::size_t NextPowerOfTwo(std::size_t n) {
@@ -115,6 +117,7 @@ inline Matrix NaiveMultiply(const Matrix &a, const Matrix &b) {
   return c;
 }
 
+// NOLINTBEGIN(misc-no-recursion)
 inline Matrix Strassen(const Matrix &a, const Matrix &b, std::size_t threshold = 128) {
   std::size_t n = a.size();
   if (n <= threshold) {
@@ -165,5 +168,6 @@ inline Matrix Strassen(const Matrix &a, const Matrix &b, std::size_t threshold =
 
   return c;
 }
+// NOLINTBEGIN(misc-no-recursion)
 
 }  // namespace goriacheva_k_strassen_algorithm

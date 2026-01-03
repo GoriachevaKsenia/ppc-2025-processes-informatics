@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <string>
 #include <vector>
 
 #include "goriacheva_k_strassen_algorithm/common/include/common.hpp"
