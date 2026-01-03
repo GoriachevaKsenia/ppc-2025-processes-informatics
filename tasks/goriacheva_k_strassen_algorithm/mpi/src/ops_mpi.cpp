@@ -2,6 +2,7 @@
 
 #include <mpi.h>
 
+#include <algorithm>
 #include <cstddef>
 #include <vector>
 
@@ -63,11 +64,11 @@ Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(
   int num_tasks = std::min(7, size);
   int task_id = rank % num_tasks;
 
-  MPI_Comm Subcomm = MPI_COMM_NULL;
-  MPI_Comm_split(MPI_COMM_WORLD, task_id, rank, &Subcomm);
+  MPI_Comm subcomm = MPI_COMM_NULL;
+  MPI_Comm_split(MPI_COMM_WORLD, task_id, rank, &subcomm);
 
   int sub_rank = 0;
-  MPI_Comm_rank(Subcomm, &sub_rank);
+  MPI_Comm_rank(subcomm, &sub_rank);
 
   Matrix mi;
   if (sub_rank == 0) {
@@ -96,7 +97,7 @@ Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(
     }
   }
 
-  MPI_Comm_free(&Subcomm);
+  MPI_Comm_free(&subcomm);
 
   std::vector<Matrix> m(7);
 
@@ -106,7 +107,7 @@ Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(
     }
 
     for (int i = 1; i < num_tasks; ++i) {
-      int tid;
+      int tid = 0;
       std::vector<double> buf(k * k);
       MPI_Status status;
 
@@ -119,8 +120,6 @@ Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(
 
     for (int task = num_tasks; task < 7; ++task) {
       switch (task) {
-        default:
-          break;
         case 0:
           m[0] = Strassen(Add(a11, a22), Add(b11, b22));
           break;
@@ -142,6 +141,8 @@ Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(
         case 6:
           m[6] = Strassen(Sub(a12, a22), Add(b21, b22));
           break;
+        default:
+          break;
       }
     }
   } else if (sub_rank == 0) {
@@ -162,11 +163,11 @@ Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(
     }
   }
 
-  auto flatC = Flatten(c);
-  MPI_Bcast(flatC.data(), static_cast<int>(n * n), MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  auto flat_c = Flatten(c);
+  MPI_Bcast(flat_c.data(), static_cast<int>(n * n), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
   if (rank != 0) {
-    c = UnFlatten(flatC, n);
+    c = UnFlatten(flat_c, n);
   }
 
   return c;

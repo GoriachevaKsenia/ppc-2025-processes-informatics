@@ -1,6 +1,8 @@
 #pragma once
 
+#include <algorithm>
 #include <cstddef>
+#include <ranges>
 #include <string>
 #include <tuple>
 #include <vector>
@@ -43,15 +45,8 @@ inline bool IsSquare(const Matrix &m) {
   if (m.empty()) {
     return false;
   }
-  std::size_t n = m.size();
-  // NOLINT(readability-use-anyofallof)
-  for (const auto &r : m) {
-    if (r.size() != n) {
-      return false;
-    }
-  }
-  return true;
-  // NOLINT(readability-use-anyofallof)
+  const std::size_t n = m.size();
+  return std::ranges::all_of(m, [n](const auto &r) { return r.size() == n; });
 }
 
 inline std::size_t NextPowerOfTwo(std::size_t n) {
@@ -117,8 +112,8 @@ inline Matrix NaiveMultiply(const Matrix &a, const Matrix &b) {
   return c;
 }
 
-// NOLINTBEGIN(misc-no-recursion)
-inline Matrix Strassen(const Matrix &a, const Matrix &b, std::size_t threshold = 128) {
+inline Matrix Strassen(const Matrix &a, const Matrix &b, std::size_t threshold = 128)  // NOLINTBEGIN(misc-no-recursion)
+{
   std::size_t n = a.size();
   if (n <= threshold) {
     return NaiveMultiply(a, b);
@@ -168,6 +163,5 @@ inline Matrix Strassen(const Matrix &a, const Matrix &b, std::size_t threshold =
 
   return c;
 }
-// NOLINTBEGIN(misc-no-recursion)
 
 }  // namespace goriacheva_k_strassen_algorithm

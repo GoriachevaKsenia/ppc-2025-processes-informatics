@@ -12,7 +12,7 @@ GoriachevaKStrassenAlgorithmSEQ::GoriachevaKStrassenAlgorithmSEQ(const InType &i
 }
 
 bool GoriachevaKStrassenAlgorithmSEQ::ValidationImpl() {
-  return IsSquare(GetInput().a) && IsSquare(GetInput().b) && GetInput().a.size() == GetInput().a.size();
+  return IsSquare(GetInput().a) && IsSquare(GetInput().b) && GetInput().a.size() == GetInput().b.size();
 }
 
 bool GoriachevaKStrassenAlgorithmSEQ::PreProcessingImpl() {

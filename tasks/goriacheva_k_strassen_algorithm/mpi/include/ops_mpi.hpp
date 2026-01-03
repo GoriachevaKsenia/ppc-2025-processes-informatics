@@ -22,7 +22,7 @@ class GoriachevaKStrassenAlgorithmMPI : public BaseTask {
   InType input_matrices_;
   OutType result_matrix_;
 
-  Matrix MpiStrassenTop(const Matrix &a, const Matrix &b);
+  static Matrix MpiStrassenTop(const Matrix &a, const Matrix &b);
 };
 
 }  // namespace goriacheva_k_strassen_algorithm
