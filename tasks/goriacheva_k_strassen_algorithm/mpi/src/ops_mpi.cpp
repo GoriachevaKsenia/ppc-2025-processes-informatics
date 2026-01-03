@@ -94,6 +94,8 @@ Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(
       case 6:
         mi = Strassen(Sub(a12, a22), Add(b21, b22));
         break;
+      default:
+        break;
     }
   }
 

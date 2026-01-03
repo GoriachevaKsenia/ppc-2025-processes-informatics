@@ -8,7 +8,6 @@
 #include "goriacheva_k_strassen_algorithm/mpi/include/ops_mpi.hpp"
 #include "goriacheva_k_strassen_algorithm/seq/include/ops_seq.hpp"
 #include "util/include/perf_test_util.hpp"
-#include "util/include/util.hpp"
 
 namespace goriacheva_k_strassen_algorithm {
 
