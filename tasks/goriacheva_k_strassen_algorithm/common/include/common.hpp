@@ -112,7 +112,7 @@ inline Matrix NaiveMultiply(const Matrix &a, const Matrix &b) {
   return c;
 }
 
-inline Matrix Strassen(const Matrix &a, const Matrix &b, std::size_t threshold = 128)  // NOLINTBEGIN(misc-no-recursion)
+inline Matrix Strassen(const Matrix &a, const Matrix &b, std::size_t threshold = 128)  // NOLINT(misc-no-recursion)
 {
   std::size_t n = a.size();
   if (n <= threshold) {
