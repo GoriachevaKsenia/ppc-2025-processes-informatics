@@ -593,23 +593,42 @@ std::vector<LocalTestType> LoadTestCasesFromData() {
   std::vector<LocalTestType> cases;
   cases.reserve(data.size());
 
-  for (auto &item : data) {
-    LocalTestType t;
-    t.name = item.at("name");
+  for (const auto &item : data) {
+    LocalTestType t{};
+    t.name = item.at("name").get<std::string>();
 
     const auto &pj = item.at("problem");
+
     Problem p{};
-    p.left = pj.at("left");
-    p.right = pj.at("right");
+    p.left = pj.at("left").get<double>();
+    p.right = pj.at("right").get<double>();
+
+    // defaults
     p.accuracy = 1e-4;
     p.reliability = 3.0;
     p.max_iterations = 300;
+
+    // optional per-test settings
+    if (item.contains("settings")) {
+      const auto &s = item.at("settings");
+
+      if (s.contains("accuracy")) {
+        p.accuracy = s.at("accuracy").get<double>();
+      }
+      if (s.contains("reliability")) {
+        p.reliability = s.at("reliability").get<double>();
+      }
+      if (s.contains("max_iterations")) {
+        p.max_iterations = s.at("max_iterations").get<int>();
+      }
+    }
+
     p.func = BuildFunction(item.at("function"));
-    t.problem = p;
+    t.problem = std::move(p);
 
     const auto &ej = item.at("expected");
     t.expected.argmins = ej.at("argmins").get<std::vector<double>>();
-    t.expected.value = ej.at("value");
+    t.expected.value = ej.at("value").get<double>();
 
     cases.push_back(std::move(t));
   }
