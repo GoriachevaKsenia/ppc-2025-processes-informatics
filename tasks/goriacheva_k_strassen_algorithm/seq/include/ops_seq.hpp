@@ -5,7 +5,7 @@
 #include "goriacheva_k_strassen_algorithm/common/include/common.hpp"
 #include "task/include/task.hpp"
 
-namespace goriacheva_k_Strassen_algorithm {
+namespace goriacheva_k_strassen_algorithm {
 
 class GoriachevaKStrassenAlgorithmSEQ : public BaseTask {
  public:
@@ -24,4 +24,4 @@ class GoriachevaKStrassenAlgorithmSEQ : public BaseTask {
   OutType result_matrix_;
 };
 
-}  // namespace goriacheva_k_Strassen_algorithm
+}  // namespace goriacheva_k_strassen_algorithm

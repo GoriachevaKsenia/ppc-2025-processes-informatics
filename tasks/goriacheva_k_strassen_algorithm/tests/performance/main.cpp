@@ -1,7 +1,6 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
-#include <string>
 #include <vector>
 
 #include "goriacheva_k_strassen_algorithm/common/include/common.hpp"
@@ -9,7 +8,7 @@
 #include "goriacheva_k_strassen_algorithm/seq/include/ops_seq.hpp"
 #include "util/include/perf_test_util.hpp"
 
-namespace goriacheva_k_Strassen_algorithm {
+namespace goriacheva_k_strassen_algorithm {
 
 class GoriachevaKStrassenAlgorithmPerfTests : public ppc::util::BaseRunPerfTests<InType, OutType> {
  public:
@@ -57,4 +56,4 @@ INSTANTIATE_TEST_SUITE_P(GoriachevaKStrassenAlgorithmPerfomanceTests, Goriacheva
                          kPerfParams, MakePerfName);
 
 }  // namespace
-}  // namespace goriacheva_k_Strassen_algorithm
+}  // namespace goriacheva_k_strassen_algorithm

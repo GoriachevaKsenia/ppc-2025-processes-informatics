@@ -2,12 +2,11 @@
 
 #include <mpi.h>
 
-#include <algorithm>
 #include <vector>
 
 #include "goriacheva_k_strassen_algorithm/common/include/common.hpp"
 
-namespace goriacheva_k_Strassen_algorithm {
+namespace goriacheva_k_strassen_algorithm {
 
 GoriachevaKStrassenAlgorithmMPI::GoriachevaKStrassenAlgorithmMPI(const InType &in) {
   SetTypeOfTask(GetStaticTypeOfTask());
@@ -23,7 +22,7 @@ bool GoriachevaKStrassenAlgorithmMPI::PreProcessingImpl() {
   return true;
 }
 
-Matrix GoriachevaKStrassenAlgorithmMPI::mpi_Strassen_top(const Matrix &a, const Matrix &b) {
+Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(const Matrix &a, const Matrix &b) {
   int rank = 0;
   int size = 1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -177,7 +176,7 @@ bool GoriachevaKStrassenAlgorithmMPI::RunImpl() {
   Matrix a_pad = (n == m) ? a : PadMatrix(a, m);
   Matrix b_pad = (n == m) ? b : PadMatrix(b, m);
 
-  Matrix c_pad = mpi_Strassen_top(a_pad, b_pad);
+  Matrix c_pad = MpiStrassenTop(a_pad, b_pad);
   result_matrix_ = (n == m) ? c_pad : CropMatrix(c_pad, n);
 
   return true;
@@ -188,4 +187,4 @@ bool GoriachevaKStrassenAlgorithmMPI::PostProcessingImpl() {
   return true;
 }
 
-}  // namespace goriacheva_k_Strassen_algorithm
+}  // namespace goriacheva_k_strassen_algorithm

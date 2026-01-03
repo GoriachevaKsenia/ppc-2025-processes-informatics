@@ -14,7 +14,7 @@
 #include "task/include/task.hpp"
 #include "util/include/func_test_util.hpp"
 
-namespace goriacheva_k_Strassen_algorithm {
+namespace goriacheva_k_strassen_algorithm {
 
 using FuncParam = ppc::util::FuncTestParam<InType, OutType, TestType>;
 
@@ -111,4 +111,4 @@ INSTANTIATE_TEST_SUITE_P(GoriachevaKStrassenAlgorithmFunctionalTests, Goriacheva
                          testing::ValuesIn(kFuncParams), GoriachevaKStrassenAlgorithmFuncTests::PrintTestParam);
 
 }  // namespace
-}  // namespace goriacheva_k_Strassen_algorithm
+}  // namespace goriacheva_k_strassen_algorithm

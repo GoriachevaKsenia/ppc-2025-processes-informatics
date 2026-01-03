@@ -7,13 +7,13 @@
 
 #include "task/include/task.hpp"
 
-namespace goriacheva_k_Strassen_algorithm {
+namespace goriacheva_k_strassen_algorithm {
 
 using Matrix = std::vector<std::vector<double>>;
 
 struct InType {
-  Matrix a;
-  Matrix b;
+  Matrix a{};
+  Matrix b{};
 };
 
 using OutType = Matrix;
@@ -166,4 +166,4 @@ inline Matrix Strassen(const Matrix &a, const Matrix &b, std::size_t threshold =
   return c;
 }
 
-}  // namespace goriacheva_k_Strassen_algorithm
+}  // namespace goriacheva_k_strassen_algorithm

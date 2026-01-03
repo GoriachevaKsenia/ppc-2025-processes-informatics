@@ -1,10 +1,8 @@
 #include "goriacheva_k_strassen_algorithm/seq/include/ops_seq.hpp"
 
-#include <cmath>
-
 #include "goriacheva_k_strassen_algorithm/common/include/common.hpp"
 
-namespace goriacheva_k_Strassen_algorithm {
+namespace goriacheva_k_strassen_algorithm {
 
 GoriachevaKStrassenAlgorithmSEQ::GoriachevaKStrassenAlgorithmSEQ(const InType &in) {
   SetTypeOfTask(GetStaticTypeOfTask());
@@ -41,4 +39,4 @@ bool GoriachevaKStrassenAlgorithmSEQ::PostProcessingImpl() {
   return true;
 }
 
-}  // namespace goriacheva_k_Strassen_algorithm
+}  // namespace goriacheva_k_strassen_algorithm

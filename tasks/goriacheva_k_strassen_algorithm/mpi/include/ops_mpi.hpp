@@ -7,7 +7,7 @@
 #include "goriacheva_k_strassen_algorithm/common/include/common.hpp"
 #include "task/include/task.hpp"
 
-namespace goriacheva_k_Strassen_algorithm {
+namespace goriacheva_k_strassen_algorithm {
 
 class GoriachevaKStrassenAlgorithmMPI : public BaseTask {
  public:
@@ -26,7 +26,7 @@ class GoriachevaKStrassenAlgorithmMPI : public BaseTask {
   InType input_matrices_;
   OutType result_matrix_;
 
-  Matrix mpi_Strassen_top(const Matrix &A, const Matrix &B);
+  Matrix MpiStrassenTop(const Matrix &a, const Matrix &b);
 };
 
-}  // namespace goriacheva_k_Strassen_algorithm
+}  // namespace goriacheva_k_strassen_algorithm
