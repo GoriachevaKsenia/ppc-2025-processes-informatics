@@ -13,6 +13,7 @@
 #include "goriacheva_k_strassen_algorithm/seq/include/ops_seq.hpp"
 #include "task/include/task.hpp"
 #include "util/include/func_test_util.hpp"
+#include "util/include/util.hpp"
 
 namespace goriacheva_k_strassen_algorithm {
 
