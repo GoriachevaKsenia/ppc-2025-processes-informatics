@@ -1,5 +1,5 @@
 {
-  "tasks_type": "threads",
+  "tasks_type": "processes",
   "tasks": {
     "seq": "enabled",
     "mpi": "enabled"
