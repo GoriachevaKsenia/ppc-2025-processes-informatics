@@ -1,22 +1,18 @@
 #include <gtest/gtest.h>
 
-#include <algorithm>
+#include <array>
 #include <cctype>
 #include <cstddef>
-#include <filesystem>
 #include <fstream>
 #include <sstream>
 #include <stdexcept>
 #include <string>
-#include <string_view>
-#include <system_error>
-#include <utility>
+#include <tuple>
 #include <vector>
 
 #include "sizov_d_bubble_sort/common/include/common.hpp"
 #include "sizov_d_bubble_sort/mpi/include/ops_mpi.hpp"
 #include "sizov_d_bubble_sort/seq/include/ops_seq.hpp"
-#include "task/include/task.hpp"
 #include "util/include/func_test_util.hpp"
 #include "util/include/util.hpp"
 
@@ -116,93 +112,21 @@ class SizovDRunFuncTestsBubbleSort : public ppc::util::BaseRunFuncTests<InType, 
 
 namespace {
 
-TEST_P(SizovDRunFuncTestsBubbleSort, CompareStringsFromFile) {
+TEST_P(SizovDRunFuncTestsBubbleSort, BubbleSortTests) {
   ExecuteTest(GetParam());
 }
 
-std::vector<TestType> GetTestParamsFromData() {
-  namespace fs = std::filesystem;
+const std::array<TestType, 40> kTestParam = {
+    "test1",  "test2",  "test3",  "test4",  "test5",  "test6",  "test7",  "test8",  "test9",  "test10",
+    "test11", "test12", "test13", "test14", "test15", "test16", "test17", "test18", "test19", "test20",
+    "test21", "test22", "test23", "test24", "test25", "test26", "test27", "test28", "test29", "test30",
+    "test31", "test32", "test33", "test34", "test35", "test36", "test37", "test38", "test39", "test40"};
 
-  const fs::path data_dir = ppc::util::GetAbsoluteTaskPath(PPC_ID_sizov_d_bubble_sort, "");
-  std::error_code ec;
-  std::vector<std::pair<int, TestType>> numbered_tests;
+const auto kTestTasksList =
+    std::tuple_cat(ppc::util::AddFuncTask<SizovDBubbleSortMPI, InType>(kTestParam, PPC_SETTINGS_sizov_d_bubble_sort),
+                   ppc::util::AddFuncTask<SizovDBubbleSortSEQ, InType>(kTestParam, PPC_SETTINGS_sizov_d_bubble_sort));
 
-  for (const auto &entry : fs::directory_iterator(data_dir, ec)) {
-    if (ec) {
-      throw std::runtime_error("Failed to read data directory: " + data_dir.string());
-    }
-    if (!entry.is_regular_file()) {
-      continue;
-    }
-
-    const fs::path &path = entry.path();
-    if (path.extension() != ".txt") {
-      continue;
-    }
-
-    const std::string stem = path.stem().string();
-    constexpr std::string_view kPrefix = "test";
-    if (!stem.starts_with(kPrefix)) {
-      continue;
-    }
-
-    const std::string number_part = stem.substr(kPrefix.size());
-    if (number_part.empty() || !std::ranges::all_of(number_part, [](char c) { return std::isdigit(c) != 0; })) {
-      continue;
-    }
-
-    numbered_tests.emplace_back(std::stoi(number_part), stem);
-  }
-
-  if (ec) {
-    throw std::runtime_error("Failed to iterate data directory: " + data_dir.string());
-  }
-
-  if (numbered_tests.empty()) {
-    throw std::runtime_error("No test data files found in " + data_dir.string());
-  }
-
-  std::ranges::sort(numbered_tests, [](const auto &lhs, const auto &rhs) {
-    if (lhs.first != rhs.first) {
-      return lhs.first < rhs.first;
-    }
-    return lhs.second < rhs.second;
-  });
-
-  std::vector<TestType> params;
-  params.reserve(numbered_tests.size());
-  for (const auto &[_, name] : numbered_tests) {
-    params.push_back(name);
-  }
-
-  return params;
-}
-
-using FuncParam = ppc::util::FuncTestParam<InType, OutType, TestType>;
-
-std::vector<FuncParam> BuildTestTasks(const std::vector<TestType> &tests) {
-  std::vector<FuncParam> tasks;
-  tasks.reserve(tests.size() * 2);
-
-  for (const auto &test : tests) {
-    tasks.emplace_back(
-        ppc::task::TaskGetter<SizovDBubbleSortMPI, InType>,
-        std::string(ppc::util::GetNamespace<SizovDBubbleSortMPI>()) + "_" +
-            ppc::task::GetStringTaskType(SizovDBubbleSortMPI::GetStaticTypeOfTask(), PPC_SETTINGS_sizov_d_bubble_sort),
-        test);
-    tasks.emplace_back(
-        ppc::task::TaskGetter<SizovDBubbleSortSEQ, InType>,
-        std::string(ppc::util::GetNamespace<SizovDBubbleSortSEQ>()) + "_" +
-            ppc::task::GetStringTaskType(SizovDBubbleSortSEQ::GetStaticTypeOfTask(), PPC_SETTINGS_sizov_d_bubble_sort),
-        test);
-  }
-
-  return tasks;
-}
-
-const auto kTestParam = GetTestParamsFromData();
-const auto kTestTasksList = BuildTestTasks(kTestParam);
-const auto kGtestValues = ::testing::ValuesIn(kTestTasksList);
+const auto kGtestValues = ppc::util::ExpandToValues(kTestTasksList);
 
 const auto kTestName = SizovDRunFuncTestsBubbleSort::PrintFuncTestName<SizovDRunFuncTestsBubbleSort>;
 

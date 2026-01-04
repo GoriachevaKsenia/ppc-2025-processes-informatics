@@ -3,6 +3,7 @@
 #include <mpi.h>
 
 #include <algorithm>
+#include <utility>
 #include <vector>
 
 #include "sizov_d_bubble_sort/common/include/common.hpp"
@@ -11,71 +12,91 @@ namespace sizov_d_bubble_sort {
 
 namespace {
 
-void ComputeScatterInfo(int total, int size, std::vector<int> &counts, std::vector<int> &displs) {
-  const int base = total / size;
-  const int rem = total % size;
+struct ScatterPlan {
+  std::vector<int> counts;
+  std::vector<int> displs;
+};
+
+ScatterPlan MakeScatterPlan(int n, int comm_size) {
+  ScatterPlan plan;
+  plan.counts.assign(comm_size, 0);
+  plan.displs.assign(comm_size, 0);
+
+  const int base = n / comm_size;
+  const int rem = n % comm_size;
 
   int offset = 0;
-  for (int i = 0; i < size; ++i) {
-    counts[i] = base + (i < rem ? 1 : 0);
-    displs[i] = offset;
-    offset += counts[i];
+  for (int rank_idx = 0; rank_idx < comm_size; ++rank_idx) {
+    plan.counts[rank_idx] = base + ((rank_idx < rem) ? 1 : 0);
+    plan.displs[rank_idx] = offset;
+    offset += plan.counts[rank_idx];
+  }
+
+  return plan;
+}
+
+inline void CompareSwap(int &a, int &b) {
+  if (a > b) {
+    std::swap(a, b);
   }
 }
 
-void LocalOddEvenPass(std::vector<int> &local, int global_start, int parity) {
-  const int n = static_cast<int>(local.size());
-  for (int i = 0; i + 1 < n; ++i) {
-    const int gidx = global_start + i;
-    if ((gidx % 2) == parity) {
-      if (local[i] > local[i + 1]) {
-        std::swap(local[i], local[i + 1]);
-      }
-    }
-  }
-}
-
-void ExchangeBoundary(std::vector<int> &local, const std::vector<int> &counts, int rank, int partner) {
+void LocalOddEvenPhase(std::vector<int> &local, int global_offset, int phase_parity) {
   const int local_n = static_cast<int>(local.size());
-  const int partner_n = counts[partner];
-
-  if (local_n == 0 || partner_n == 0) {
+  if (local_n < 2) {
     return;
   }
 
-  const bool left_side = (rank < partner);
-  int send_value = left_side ? local[local_n - 1] : local[0];
-  int recv_value = 0;
-
-  MPI_Sendrecv(&send_value, 1, MPI_INT, partner, 0, &recv_value, 1, MPI_INT, partner, 0, MPI_COMM_WORLD,
-               MPI_STATUS_IGNORE);
-
-  if (left_side) {
-    local[local_n - 1] = std::min(local[local_n - 1], recv_value);
-  } else {
-    local[0] = std::max(local[0], recv_value);
+  int idx = ((global_offset & 1) == phase_parity) ? 0 : 1;
+  for (; idx + 1 < local_n; idx += 2) {
+    CompareSwap(local[idx], local[idx + 1]);
   }
 }
 
-void OddEvenPhase(std::vector<int> &local, const std::vector<int> &counts, const std::vector<int> &displs, int rank,
-                  int size, int phase) {
+void ExchangeRightIfNeeded(std::vector<int> &local, const ScatterPlan &plan, int rank, int comm_size, int phase_parity,
+                           int tag) {
   if (local.empty()) {
     return;
   }
-
-  const int parity = phase % 2;
-  const int global_start = displs[rank];
-
-  LocalOddEvenPass(local, global_start, parity);
-
-  const bool even_phase = (phase % 2 == 0);
-  const bool even_rank = (rank % 2 == 0);
-
-  int partner = (even_phase == even_rank) ? rank + 1 : rank - 1;
-
-  if (partner >= 0 && partner < size) {
-    ExchangeBoundary(local, counts, rank, partner);
+  if (rank + 1 >= comm_size || plan.counts[rank + 1] == 0) {
+    return;
   }
+
+  const int last_global = plan.displs[rank] + static_cast<int>(local.size()) - 1;
+  if ((last_global & 1) != phase_parity) {
+    return;
+  }
+
+  int send_val = local.back();
+  int recv_val = 0;
+
+  MPI_Sendrecv(&send_val, 1, MPI_INT, rank + 1, tag, &recv_val, 1, MPI_INT, rank + 1, tag, MPI_COMM_WORLD,
+               MPI_STATUS_IGNORE);
+
+  local.back() = std::min(send_val, recv_val);
+}
+
+void ExchangeLeftIfNeeded(std::vector<int> &local, const ScatterPlan &plan, int rank, int phase_parity, int tag) {
+  if (local.empty()) {
+    return;
+  }
+  if (rank - 1 < 0 || plan.counts[rank - 1] == 0) {
+    return;
+  }
+
+  const int first_global = plan.displs[rank];
+  const int boundary_left_global = first_global - 1;
+  if ((boundary_left_global & 1) != phase_parity) {
+    return;
+  }
+
+  int send_val = local.front();
+  int recv_val = 0;
+
+  MPI_Sendrecv(&send_val, 1, MPI_INT, rank - 1, tag, &recv_val, 1, MPI_INT, rank - 1, tag, MPI_COMM_WORLD,
+               MPI_STATUS_IGNORE);
+
+  local.front() = std::max(send_val, recv_val);
 }
 
 }  // namespace
@@ -102,51 +123,48 @@ bool SizovDBubbleSortMPI::PreProcessingImpl() {
 
 bool SizovDBubbleSortMPI::RunImpl() {
   int rank = 0;
-  int size = 1;
+  int comm_size = 1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
-  int n = (rank == 0 ? static_cast<int>(data_.size()) : 0);
+  int n = 0;
+  if (rank == 0) {
+    n = static_cast<int>(data_.size());
+  }
   MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
   if (n <= 1) {
     if (rank != 0) {
       data_.assign(n, 0);
     }
-    if (n > 0) {
-      MPI_Bcast(data_.data(), n, MPI_INT, 0, MPI_COMM_WORLD);
+    if (n == 1) {
+      MPI_Bcast(data_.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
     }
     GetOutput() = data_;
     return true;
   }
 
-  std::vector<int> counts(size);
-  std::vector<int> displs(size);
-  ComputeScatterInfo(n, size, counts, displs);
+  const ScatterPlan plan = MakeScatterPlan(n, comm_size);
+  const int local_n = plan.counts[rank];
 
-  const int local_n = counts[rank];
   std::vector<int> local(local_n);
-
-  MPI_Scatterv((rank == 0 ? data_.data() : nullptr), counts.data(), displs.data(), MPI_INT, local.data(), local_n,
-               MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Scatterv(rank == 0 ? data_.data() : nullptr, plan.counts.data(), plan.displs.data(), MPI_INT, local.data(),
+               local_n, MPI_INT, 0, MPI_COMM_WORLD);
 
   for (int phase = 0; phase < n; ++phase) {
-    OddEvenPhase(local, counts, displs, rank, size, phase);
+    const int parity = phase & 1;
+    const int tag = phase;
+
+    LocalOddEvenPhase(local, plan.displs[rank], parity);
+    ExchangeRightIfNeeded(local, plan, rank, comm_size, parity, tag);
+    ExchangeLeftIfNeeded(local, plan, rank, parity, tag);
   }
 
   std::vector<int> result(n);
-  MPI_Gatherv(local.data(), local_n, MPI_INT, result.data(), counts.data(), displs.data(), MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Allgatherv(local.data(), local_n, MPI_INT, result.data(), plan.counts.data(), plan.displs.data(), MPI_INT,
+                 MPI_COMM_WORLD);
 
-  if (rank == 0) {
-    GetOutput() = result;
-  } else {
-    GetOutput().assign(n, 0);
-  }
-
-  if (n > 0) {
-    MPI_Bcast(GetOutput().data(), n, MPI_INT, 0, MPI_COMM_WORLD);
-  }
-
+  GetOutput() = std::move(result);
   return true;
 }
 

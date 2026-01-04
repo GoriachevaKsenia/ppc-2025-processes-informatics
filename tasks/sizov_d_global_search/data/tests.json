@@ -3,42 +3,70 @@
     "name": "case_001_linear_inc",
     "function": { "expression": "x" },
     "problem": { "left": -5.0, "right": 5.0 },
+    "settings": { "accuracy": 0.0001, "reliability": 3.0, "max_iterations": 300 },
     "expected": { "argmins": [-5.0], "value": -5.0 }
   },
-
   {
     "name": "case_002_linear_dec",
     "function": { "expression": "-2*x + 3" },
     "problem": { "left": -5.0, "right": 5.0 },
+    "settings": { "accuracy": 0.0001, "reliability": 3.0, "max_iterations": 300 },
     "expected": { "argmins": [5.0], "value": -7.0 }
   },
-
   {
-    "name": "case_003_quadratic",
-    "function": { "expression": "(x - 2)^2 + 1" },
-    "problem": { "left": 0.0, "right": 4.0 },
-    "expected": { "argmins": [2.0], "value": 1.0 }
+    "name": "case_003_quad_center",
+    "function": { "expression": "x^2" },
+    "problem": { "left": -2.0, "right": 2.0 },
+    "settings": { "accuracy": 0.0001, "reliability": 3.0, "max_iterations": 300 },
+    "expected": { "argmins": [0.0], "value": 0.0 }
   },
-
   {
-    "name": "case_004_abs_shift",
-    "function": { "expression": "abs(x - 1)" },
-    "problem": { "left": -4.0, "right": 4.0 },
+    "name": "case_004_quad_shifted",
+    "function": { "expression": "(x - 1)^2" },
+    "problem": { "left": -1.5, "right": 1.5 },
+    "settings": { "accuracy": 0.0001, "reliability": 3.0, "max_iterations": 300 },
     "expected": { "argmins": [1.0], "value": 0.0 }
   },
-  
   {
-    "name": "case_005_exp",
-    "function": { "expression": "exp(x)" },
-    "problem": { "left": 0.0, "right": 2.0 },
-    "expected": { "argmins": [0.0], "value": 1.0 }
+    "name": "case_005_quad_const",
+    "function": { "expression": "x^2 + 5" },
+    "problem": { "left": -1.0, "right": 1.0 },
+    "settings": { "accuracy": 0.0001, "reliability": 3.0, "max_iterations": 300 },
+    "expected": { "argmins": [0.0], "value": 5.0 }
   },
-
   {
-    "name": "case_006_log_abs_shift",
-    "function": { "expression": "log(abs(x - 1) + 2)" },
-    "problem": { "left": -2.0, "right": 4.0 },
-    "expected": { "argmins": [1.0], "value": 0.6931471805599453 }
+    "name": "case_006_abs",
+    "function": { "expression": "abs(x)" },
+    "problem": { "left": -4.0, "right": 4.0 },
+    "settings": { "accuracy": 0.001, "reliability": 3.0, "max_iterations": 150 },
+    "expected": { "argmins": [0.0], "value": 0.0 }
+  },
+  {
+    "name": "case_007_abs_shift",
+    "function": { "expression": "abs(x - 1)" },
+    "problem": { "left": -4.0, "right": 4.0 },
+    "settings": { "accuracy": 0.001, "reliability": 3.0, "max_iterations": 150 },
+    "expected": { "argmins": [1.0], "value": 0.0 }
+  },
+  {
+    "name": "case_008_abs_quad",
+    "function": { "expression": "abs(x) + 0.1*x^2" },
+    "problem": { "left": -1.0, "right": 1.0 },
+    "settings": { "accuracy": 0.001, "reliability": 3.0, "max_iterations": 150 },
+    "expected": { "argmins": [0.0], "value": 0.0 }
+  },
+  {
+    "name": "case_009_quad_mixed",
+    "function": { "expression": "0.2*x^2 - 0.3*x" },
+    "problem": { "left": -1.5, "right": 1.5 },
+    "settings": { "accuracy": 0.0001, "reliability": 3.0, "max_iterations": 300 },
+    "expected": { "argmins": [0.75], "value": -0.1125 }
+  },
+  {
+    "name": "case_010_quartic",
+    "function": { "expression": "x^4" },
+    "problem": { "left": -0.5, "right": 0.5 },
+    "settings": { "accuracy": 0.0001, "reliability": 3.0, "max_iterations": 300 },
+    "expected": { "argmins": [0.0], "value": 0.0 }
   }
-
 ]

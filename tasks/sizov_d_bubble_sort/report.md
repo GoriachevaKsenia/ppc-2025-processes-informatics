@@ -45,119 +45,120 @@ Time complexity: **O(n²)**.
 
 ### 4.1 Data Distribution
 
-At the beginning of the parallel algorithm, the root process (rank 0) broadcasts  
-the total number of elements `n` using `MPI_Bcast`, so that every process knows  
-the global problem size before receiving its portion of data.
+At the beginning of the parallel algorithm, the root process (rank 0) broadcasts
+the total number of elements `n` using `MPI_Bcast`. This ensures that every MPI
+process knows the global problem size before data distribution begins.
 
-To split the input array among all MPI processes, the helper function  
-`ComputeScatterInfo` constructs two arrays:
+To partition the input array among the processes, an auxiliary structure
+`ScatterPlan` is constructed. It contains two arrays:
 
-• `counts[i]` — how many elements are assigned to process *i*  
-• `displs[i]` — the starting index of process *i* in the global array
+• `counts[i]` — the number of elements assigned to process *i*  
+• `displs[i]` — the starting global index of process *i*’s block
 
-The partitioning is almost uniform: each process receives either  
-`⌊n / p⌋` or `⌊n / p⌋ + 1` elements, with the first `n % p` processes obtaining  
-one additional element to compensate for uneven division.
+The distribution is almost uniform: each process receives either  
+`⌊n / p⌋` or `⌊n / p⌋ + 1` elements, with the first `n mod p` processes obtaining
+one additional element. This guarantees balanced workload while preserving the
+global ordering of elements.
 
-These arrays are then used by `MPI_Scatterv`, which distributes the corresponding  
-contiguous segments of the input array to all processes.  
-As a result, each process obtains its own local block and can participate  
-in the odd–even transposition phases.
+The arrays `counts` and `displs` are then passed to `MPI_Scatterv`, which
+distributes contiguous segments of the input array to all processes. As a
+result, each process receives a local block that corresponds to a continuous
+interval of the global array.
 
-### 4.2 Local Work
+---
 
-After data distribution, each process receives its segment of the global array  
-into the vector `local`. Since we are implementing the classical odd–even  
-transposition sort (a distributed analogue of bubble sort), no initial local  
-sorting is performed: each process works with its raw unsorted block.
+### 4.2 Local Computation
 
-During every global phase, each process performs two operations:
+After data distribution, each process stores its assigned block in the vector
+`local`. No preliminary local sorting is performed: the algorithm implements
+the classical odd–even transposition sort, which gradually establishes global
+order through coordinated local and boundary operations.
 
-• a **local odd–even pass**, comparing adjacent elements inside its block  
-  according to the global parity of the phase (even or odd indices),  
+During each global phase, every process performs a **local odd–even pass**.
+Only adjacent pairs whose **global indices** match the parity of the current
+phase are compared.
 
-• a **boundary exchange** with exactly one neighbor (left or right),  
-  where the processes exchange a single boundary element and keep the  
-  appropriate one (left keeps the smaller, right keeps the larger).
+To minimize unnecessary work, the local loop advances with a step of two,
+performing exactly ⌈local_n / 2⌉ comparisons per phase. This corresponds to the
+minimal number of comparisons required by the odd–even scheme.
 
-Together, these steps replicate the behavior of bubble sort across process  
-boundaries: small values gradually move left, large values move right.
+If a process contains fewer than two elements, it skips the local phase
+entirely.
 
-No merging of whole blocks and no local full sorts are performed.  
-Global order emerges progressively as the algorithm executes `n` odd–even phases.
+---
 
-### 4.3 Neighbor Exchanges (Odd–Even Transposition Phases)
+### 4.3 Neighbor Communication and Odd–Even Phases
 
-The MPI version implements the classical **odd–even transposition sort**, which is
-a parallel analogue of bubble sort. The algorithm proceeds through **`n` global
-phases**, where `n` is the total number of elements. This number of phases is
-sufficient to guarantee that every element can “bubble” to its correct global
-position.
+The MPI implementation follows the classical **odd–even transposition sort**,
+which is a distributed analogue of bubble sort. The algorithm consists of
+exactly `n` global phases, where `n` is the total number of elements in the
+array. This number of phases is sufficient to guarantee that every element can
+move to its correct global position.
 
-Each global phase consists of two coordinated actions performed by every process:
+Each phase proceeds as follows:
 
-1. **Determine phase parity**
+1. **Phase parity determination**
 
-   The phase number (even or odd) defines which global index pairs must be
-   compared during this pass. Processes use this parity to decide which local
-   adjacent positions should be compared and potentially swapped.
+   The parity of the current phase (`even` or `odd`) determines which global
+   index pairs must be compared during this pass. All processes compute the
+   parity locally as `phase % 2`.
 
-2. **Local comparisons**
+2. **Local odd–even comparisons**
 
-   Each process performs a local odd–even pass on its own block:
-   it compares adjacent elements whose global indices match the phase parity and
-   swaps them if necessary. This is the exact analogue of the local step of
-   bubble sort.
+   Each process performs local compare–exchange operations on adjacent elements
+   whose global indices match the phase parity. These operations reproduce the
+   local step of bubble sort.
 
-3. **Boundary exchange with neighbor**
+3. **Boundary compare–exchange**
 
-   Because global indices run across process boundaries, each phase also
-   requires comparing elements on the border between two neighboring blocks.
-   A single neighbor is chosen deterministically:
+   Because global adjacency may cross process boundaries, a boundary
+   compare–exchange is required in some phases. Whether such an exchange is
+   needed is determined strictly by the **global index** of the boundary
+   elements:
 
-   • in even phases, even-ranked processes communicate with rank+1  
-   • in odd phases, even-ranked processes communicate with rank−1  
-   (odd ranks perform the symmetric counterpart)
+   • for the right boundary, the pair  
+     `(last_global_index, last_global_index + 1)`  
+     is active if `last_global_index % 2 == phase_parity`;
 
-   Processes exchange one boundary element using `MPI_Sendrecv`.  
-   Then:
+   • for the left boundary, the pair  
+     `(first_global_index − 1, first_global_index)`  
+     is active if `(first_global_index − 1) % 2 == phase_parity`.
 
-   • the left process keeps the *minimum* of the two values,  
-   • the right process keeps the *maximum*.
+   If the boundary pair is active and the neighboring process exists, the two
+   processes exchange one element using `MPI_Sendrecv`. After the exchange:
 
-   This reproduces the movement of small elements leftward and large elements
-   rightward, exactly as in bubble sort.
+   • the left process keeps the minimum of the two values,  
+   • the right process keeps the maximum.
 
-If a process has no valid neighbor in the current phase (partner out of range or
-empty block), it simply skips the boundary exchange.
+   If no valid neighbor exists or the boundary pair is inactive in the current
+   phase, the boundary exchange is skipped.
 
-Repeating these steps for all `n` phases ensures that every element has enough
-opportunities to move across all processes. As a result, the full distributed
-array becomes globally sorted without any additional merging steps.
+This mechanism precisely reproduces the behavior of bubble sort across process
+boundaries: smaller elements move left, larger elements move right.
+
+Repeating these steps for all `n` phases guarantees global sortedness without
+any additional synchronization or merging stages.
+
+---
 
 ### 4.4 Gathering and Finalization
 
-After all odd–even transposition phases have finished, every process holds a block
-that is internally sorted and already consistent with its neighbors. No further
-comparisons or adjustments are required.
+After completing all odd–even transposition phases, each process holds a local
+block that is both internally sorted and globally consistent with its
+neighbors.
 
-The finalization stage is straightforward and handled by the root process:
+To assemble the final result, the algorithm uses `MPI_Allgatherv`. Each process
+contributes its local block, and all blocks are gathered into a single global
+array using the same `counts` and `displs` arrays that were employed during data
+distribution.
 
-1. **Collecting results**
+As a result, **every process obtains a complete copy of the fully sorted
+array**. No additional merging or post‐processing is required, because the
+odd–even transposition algorithm guarantees correctness after all phases have
+been executed.
 
-   Each process sends its local block to rank 0 using `MPI_Gatherv`.  
-   The root reconstructs the global array using the same `counts` and `displs`
-   computed during data distribution, ensuring that all blocks return to their
-   correct positions in the overall sequence.
-
-2. **Producing the final output**
-
-   The concatenated array on the root process is already fully sorted, because
-   odd–even transposition guarantees global correctness after performing all
-   required phases. No extra merging or post‐processing is needed.
-
-At this point, rank 0 holds the complete sorted array, which becomes the final
-output of the MPI sorting procedure.
+The resulting array is then stored as the final output of the MPI sorting
+procedure.
 
 ## 5. Implementation Details
 
@@ -207,41 +208,60 @@ Each file contains two lines:
 
 ### 5.3 Additional Helper Functions
 
-Several auxiliary helper functions support the MPI implementation.  
-All algorithm-specific helpers are located inside an anonymous namespace in  
-`mpi/src/ops_mpi.cpp`, while `TrimString` belongs to the functional test utilities.
+Several auxiliary helper functions support the MPI implementation of the
+odd–even transposition sort. All algorithm-specific helpers are defined inside
+an anonymous namespace in `mpi/src/ops_mpi.cpp`, which restricts their visibility
+to the current translation unit and emphasizes their internal nature.
 
-- **`ComputeScatterInfo(total, size, counts, displs)`**  
-  Computes how many elements each process receives (`counts[i]`) and where its block  
-  begins in the global array (`displs[i]`).  
-  Handles uneven division by distributing one extra element to the first  
-  `total % size` processes.
+- **`MakeScatterPlan(n, comm_size)`**  
+  Constructs a helper structure `ScatterPlan` containing two arrays:
+  `counts` and `displs`.  
+  The array `counts[i]` specifies how many elements are assigned to process *i*,
+  while `displs[i]` stores the starting global index of that block.
 
-- **`LocalOddEvenPass(local, global_start, parity)`**  
-  Performs one local bubble-style pass inside a process’s block.  
-  Only pairs whose *global* indices match the current phase parity are compared  
-  and swapped.  
-  This is the local analogue of the odd–even bubble-sort step.
+  The input array is partitioned almost uniformly: each process receives either
+  `⌊n / p⌋` or `⌊n / p⌋ + 1` elements, and the first `n mod p` processes obtain
+  one extra element. This ensures balanced workload distribution while preserving
+  the global order of elements.
 
-- **`ExchangeBoundary(local, counts, rank, partner)`**  
-  Handles the communication between neighboring processes.  
-  Only one boundary value is exchanged:  
-  the rightmost element from the left block and the leftmost from the right block.  
-  After `MPI_Sendrecv`, each side updates its boundary element according to  
-  bubble-sort semantics (left keeps the minimum; right keeps the maximum).
+- **`CompareSwap(a, b)`**  
+  A small utility that performs an elementary compare–exchange operation.
+  If `a > b`, the values are swapped.  
+  This function represents the basic operation of bubble sort and is used
+  both in local comparisons and indirectly in boundary updates.
 
-- **`OddEvenPhase(local, counts, displs, rank, size, phase)`**  
-  Performs one full odd–even phase consisting of:  
-  1) local comparisons via `LocalOddEvenPass`, and  
-  2) a single boundary exchange with the appropriate neighbor determined  
-     by phase parity and process rank.
+- **`LocalOddEvenPhase(local, global_offset, phase_parity)`**  
+  Executes a single local odd–even pass within a process’s block.  
+  Only adjacent pairs whose *global indices* match the parity of the current
+  phase are compared and potentially swapped.
+
+  To reduce unnecessary work, the function advances the loop with a step of two,
+  performing the minimal number of comparisons required by the odd–even scheme.
+  This operation is the direct local analogue of one bubble-sort pass.
+
+- **`ExchangeRightIfNeeded(local, plan, rank, comm_size, phase_parity, tag)`**  
+  Performs a boundary compare–exchange with the right neighboring process, if
+  such a neighbor exists and the boundary pair is active in the current phase.
+
+  The function checks whether the global index pair
+  `(last_global_index, last_global_index + 1)` matches the phase parity. If so,
+  the two processes exchange a single boundary value using `MPI_Sendrecv`.
+  After the exchange, the left process keeps the minimum of the two values,
+  ensuring correct bubble-sort semantics across process boundaries.
+
+- **`ExchangeLeftIfNeeded(local, plan, rank, phase_parity, tag)`**  
+  Symmetric to `ExchangeRightIfNeeded`, this function handles boundary
+  compare–exchange with the left neighbor.
+
+In addition to the MPI helpers, the functional test utilities include:
 
 - **`TrimString(std::string& s)`** *(functional test utility)*  
-  Removes trailing and leading whitespace characters (`\r`, `\n`, `\t`, spaces)  
-  before test input parsing to avoid formatting-related errors.
+  Removes leading and trailing whitespace characters (`\r`, `\n`, `\t`, spaces)
+  before test input parsing to prevent formatting-related errors.
 
-Each helper function isolates a well-defined step of the algorithm, improving  
-the clarity and maintainability of the overall MPI bubble-sort implementation.
+Each helper isolates a well-defined step of the algorithm, improving the clarity
+and maintainability of the overall MPI odd–even transposition sort
+implementation.
 
 ## 6. Experimental Setup
 
@@ -355,58 +375,48 @@ Both the sequential (SEQ) and MPI versions of the odd–even bubble sort were fu
 ```cpp
 bool SizovDBubbleSortMPI::RunImpl() {
   int rank = 0;
-  int size = 1;
+  int comm_size = 1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  MPI_Comm_size(MPI_COMM_WORLD, &size);
+  MPI_Comm_size(MPI_COMM_WORLD, &comm_size);
 
-  int n = (rank == 0 ? static_cast<int>(data_.size()) : 0);
+  int n = 0;
+  if (rank == 0) {
+    n = static_cast<int>(data_.size());
+  }
   MPI_Bcast(&n, 1, MPI_INT, 0, MPI_COMM_WORLD);
 
   if (n <= 1) {
     if (rank != 0) {
       data_.assign(n, 0);
     }
-    if (n > 0) {
-      MPI_Bcast(data_.data(), n, MPI_INT, 0, MPI_COMM_WORLD);
+    if (n == 1) {
+      MPI_Bcast(data_.data(), 1, MPI_INT, 0, MPI_COMM_WORLD);
     }
     GetOutput() = data_;
     return true;
   }
 
-  std::vector<int> counts(size);
-  std::vector<int> displs(size);
-  ComputeScatterInfo(n, size, counts, displs);
+  const ScatterPlan plan = MakeScatterPlan(n, comm_size);
+  const int local_n = plan.counts[rank];
 
-  const int local_n = counts[rank];
   std::vector<int> local(local_n);
-
-  MPI_Scatterv((rank == 0 ? data_.data() : nullptr),
-               counts.data(), displs.data(),
-               MPI_INT,
-               local.data(), local_n,
-               MPI_INT,
-               0, MPI_COMM_WORLD);
+  MPI_Scatterv(rank == 0 ? data_.data() : nullptr, plan.counts.data(), plan.displs.data(), MPI_INT, local.data(),
+               local_n, MPI_INT, 0, MPI_COMM_WORLD);
 
   for (int phase = 0; phase < n; ++phase) {
-    OddEvenPhase(local, counts, displs, rank, size, phase);
+    const int parity = phase & 1;
+    const int tag = phase;
+
+    LocalOddEvenPhase(local, plan.displs[rank], parity);
+    ExchangeRightIfNeeded(local, plan, rank, comm_size, parity, tag);
+    ExchangeLeftIfNeeded(local, plan, rank, parity, tag);
   }
 
   std::vector<int> result(n);
-  MPI_Gatherv(local.data(), local_n, MPI_INT,
-              result.data(),
-              counts.data(), displs.data(),
-              MPI_INT, 0, MPI_COMM_WORLD);
+  MPI_Allgatherv(local.data(), local_n, MPI_INT, result.data(), plan.counts.data(), plan.displs.data(), MPI_INT,
+                 MPI_COMM_WORLD);
 
-  if (rank == 0) {
-    GetOutput() = result;
-  } else {
-    GetOutput().assign(n, 0);
-  }
-
-  if (n > 0) {
-    MPI_Bcast(GetOutput().data(), n, MPI_INT, 0, MPI_COMM_WORLD);
-  }
-
+  GetOutput() = std::move(result);
   return true;
 }
 ```

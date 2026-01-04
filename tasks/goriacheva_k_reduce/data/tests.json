@@ -1,0 +1,27 @@
+[
+  {
+    "name": "small",
+    "input": [1, 2, 3, 4],
+    "result": [10]
+  },
+  {
+    "name": "single",
+    "input": [5],
+    "result": [5]
+  },
+  {
+    "name": "negative",
+    "input": [10, -5, -5],
+    "result": [0]
+  },
+  {
+    "name": "empty",
+    "input": [],
+    "result": [0]
+  },
+  {
+    "name": "all_ones",
+    "input": [1, 1, 1, 1, 1],
+    "result": [5]
+  }
+]

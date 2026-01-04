@@ -1,7 +1,7 @@
 {
-  "tasks_type": "threads",
+  "tasks_type": "processes",
   "tasks": {
-    "seq": "disabled",
-    "mpi": "disabled"
+    "seq": "enabled",
+    "mpi": "enabled"
   }
 }

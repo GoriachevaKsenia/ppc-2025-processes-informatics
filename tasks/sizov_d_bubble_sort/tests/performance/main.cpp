@@ -14,7 +14,7 @@ namespace sizov_d_bubble_sort {
 class SizovDRunPerfTestsBubbleSort : public ppc::util::BaseRunPerfTests<InType, OutType> {
  public:
   void SetUp() override {
-    const std::size_t n = 75000;
+    const std::size_t n = 150000;
 
     std::vector<int> data(n);
     for (std::size_t i = 0; i < n; ++i) {
