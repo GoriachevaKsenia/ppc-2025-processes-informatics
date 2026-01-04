@@ -10,6 +10,76 @@
 
 namespace goriacheva_k_strassen_algorithm {
 
+struct Blocks {
+  Matrix a11, a12, a21, a22;
+  Matrix b11, b12, b21, b22;
+};
+
+Blocks SplitMatrices(const Matrix &a, const Matrix &b, std::size_t k) {
+  Blocks blk{Matrix(k, std::vector<double>(k)), Matrix(k, std::vector<double>(k)), Matrix(k, std::vector<double>(k)),
+             Matrix(k, std::vector<double>(k)), Matrix(k, std::vector<double>(k)), Matrix(k, std::vector<double>(k)),
+             Matrix(k, std::vector<double>(k)), Matrix(k, std::vector<double>(k))};
+
+  for (std::size_t i = 0; i < k; ++i) {
+    for (std::size_t j = 0; j < k; ++j) {
+      blk.a11[i][j] = a[i][j];
+      blk.a12[i][j] = a[i][j + k];
+      blk.a21[i][j] = a[i + k][j];
+      blk.a22[i][j] = a[i + k][j + k];
+
+      blk.b11[i][j] = b[i][j];
+      blk.b12[i][j] = b[i][j + k];
+      blk.b21[i][j] = b[i + k][j];
+      blk.b22[i][j] = b[i + k][j + k];
+    }
+  }
+
+  return blk;
+}
+
+Matrix ComputeMi(int task_id, const Blocks &blk) {
+  switch (task_id) {
+    case 0:
+      return Strassen(Add(blk.a11, blk.a22), Add(blk.b11, blk.b22));
+    case 1:
+      return Strassen(Add(blk.a21, blk.a22), blk.b11);
+    case 2:
+      return Strassen(blk.a11, Sub(blk.b12, blk.b22));
+    case 3:
+      return Strassen(blk.a22, Sub(blk.b21, blk.b11));
+    case 4:
+      return Strassen(Add(blk.a11, blk.a12), blk.b22);
+    case 5:
+      return Strassen(Sub(blk.a21, blk.a11), Add(blk.b11, blk.b12));
+    case 6:
+      return Strassen(Sub(blk.a12, blk.a22), Add(blk.b21, blk.b22));
+    default:
+      return {};
+  }
+}
+
+void ComputeMissingTasks(std::vector<Matrix> &m, int start_task, const Blocks &blk) {
+  for (int task = start_task; task < 7; ++task) {
+    m[task] = ComputeMi(task, blk);
+  }
+}
+
+Matrix AssembleResult(const std::vector<Matrix> &m, std::size_t k) {
+  std::size_t n = 2 * k;
+  Matrix c(n, std::vector<double>(n));
+
+  for (std::size_t i = 0; i < k; ++i) {
+    for (std::size_t j = 0; j < k; ++j) {
+      c[i][j] = m[0][i][j] + m[3][i][j] - m[4][i][j] + m[6][i][j];
+      c[i][j + k] = m[2][i][j] + m[4][i][j];
+      c[i + k][j] = m[1][i][j] + m[3][i][j];
+      c[i + k][j + k] = m[0][i][j] - m[1][i][j] + m[2][i][j] + m[5][i][j];
+    }
+  }
+
+  return c;
+}
+
 GoriachevaKStrassenAlgorithmMPI::GoriachevaKStrassenAlgorithmMPI(const InType &in) {
   SetTypeOfTask(GetStaticTypeOfTask());
   GetInput() = in;
@@ -24,42 +94,18 @@ bool GoriachevaKStrassenAlgorithmMPI::PreProcessingImpl() {
   return true;
 }
 
-Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(
-    const Matrix &a, const Matrix &b)  // NOLINT(readability-function-cognitive-complexity)
-{
-  int rank = 0;
-  int size = 1;
+Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(const Matrix &a, const Matrix &b) {
+  int rank = 0, size = 1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
   std::size_t n = a.size();
-  if ((size == 1) || (n <= 1)) {
+  if (size == 1 || n <= 1) {
     return Strassen(a, b);
   }
 
   std::size_t k = n / 2;
-
-  Matrix a11(k, std::vector<double>(k));
-  Matrix a12(k, std::vector<double>(k));
-  Matrix a21(k, std::vector<double>(k));
-  Matrix a22(k, std::vector<double>(k));
-  Matrix b11(k, std::vector<double>(k));
-  Matrix b12(k, std::vector<double>(k));
-  Matrix b21(k, std::vector<double>(k));
-  Matrix b22(k, std::vector<double>(k));
-
-  for (std::size_t i = 0; i < k; ++i) {
-    for (std::size_t j = 0; j < k; ++j) {
-      a11[i][j] = a[i][j];
-      a12[i][j] = a[i][j + k];
-      a21[i][j] = a[i + k][j];
-      a22[i][j] = a[i + k][j + k];
-      b11[i][j] = b[i][j];
-      b12[i][j] = b[i][j + k];
-      b21[i][j] = b[i + k][j];
-      b22[i][j] = b[i + k][j + k];
-    }
-  }
+  auto blocks = SplitMatrices(a, b, k);
 
   int num_tasks = std::min(7, size);
   int task_id = rank % num_tasks;
@@ -72,31 +118,7 @@ Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(
 
   Matrix mi;
   if (sub_rank == 0) {
-    switch (task_id) {
-      case 0:
-        mi = Strassen(Add(a11, a22), Add(b11, b22));
-        break;
-      case 1:
-        mi = Strassen(Add(a21, a22), b11);
-        break;
-      case 2:
-        mi = Strassen(a11, Sub(b12, b22));
-        break;
-      case 3:
-        mi = Strassen(a22, Sub(b21, b11));
-        break;
-      case 4:
-        mi = Strassen(Add(a11, a12), b22);
-        break;
-      case 5:
-        mi = Strassen(Sub(a21, a11), Add(b11, b12));
-        break;
-      case 6:
-        mi = Strassen(Sub(a12, a22), Add(b21, b22));
-        break;
-      default:
-        break;
-    }
+    mi = ComputeMi(task_id, blocks);
   }
 
   MPI_Comm_free(&subcomm);
@@ -120,52 +142,23 @@ Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(
       m[tid] = UnFlatten(buf, k);
     }
 
-    for (int task = num_tasks; task < 7; ++task) {
-      switch (task) {
-        case 0:
-          m[0] = Strassen(Add(a11, a22), Add(b11, b22));
-          break;
-        case 1:
-          m[1] = Strassen(Add(a21, a22), b11);
-          break;
-        case 2:
-          m[2] = Strassen(a11, Sub(b12, b22));
-          break;
-        case 3:
-          m[3] = Strassen(a22, Sub(b21, b11));
-          break;
-        case 4:
-          m[4] = Strassen(Add(a11, a12), b22);
-          break;
-        case 5:
-          m[5] = Strassen(Sub(a21, a11), Add(b11, b12));
-          break;
-        case 6:
-          m[6] = Strassen(Sub(a12, a22), Add(b21, b22));
-          break;
-        default:
-          break;
-      }
-    }
+    ComputeMissingTasks(m, num_tasks, blocks);
   } else if (sub_rank == 0) {
     auto buf = Flatten(mi);
     MPI_Send(&task_id, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
     MPI_Send(buf.data(), static_cast<int>(k * k), MPI_DOUBLE, 0, 1, MPI_COMM_WORLD);
   }
 
-  Matrix c(n, std::vector<double>(n));
+  Matrix c;
+  std::vector<double> flat_c;
+
   if (rank == 0) {
-    for (std::size_t i = 0; i < k; ++i) {
-      for (std::size_t j = 0; j < k; ++j) {
-        c[i][j] = m[0][i][j] + m[3][i][j] - m[4][i][j] + m[6][i][j];
-        c[i][j + k] = m[2][i][j] + m[4][i][j];
-        c[i + k][j] = m[1][i][j] + m[3][i][j];
-        c[i + k][j + k] = m[0][i][j] - m[1][i][j] + m[2][i][j] + m[5][i][j];
-      }
-    }
+    c = AssembleResult(m, k);
+    flat_c = Flatten(c);
+  } else {
+    flat_c.resize(n * n);
   }
 
-  auto flat_c = Flatten(c);
   MPI_Bcast(flat_c.data(), static_cast<int>(n * n), MPI_DOUBLE, 0, MPI_COMM_WORLD);
 
   if (rank != 0) {
