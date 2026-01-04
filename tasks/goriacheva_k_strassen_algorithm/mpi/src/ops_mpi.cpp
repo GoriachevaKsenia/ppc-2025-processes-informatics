@@ -10,15 +10,28 @@
 
 namespace goriacheva_k_strassen_algorithm {
 
+namespace {
+
 struct Blocks {
-  Matrix a11, a12, a21, a22;
-  Matrix b11, b12, b21, b22;
+  Matrix a11;
+  Matrix a12;
+  Matrix a21;
+  Matrix a22;
+  Matrix b11;
+  Matrix b12;
+  Matrix b21;
+  Matrix b22;
 };
 
-Blocks SplitMatrices(const Matrix &a, const Matrix &b, std::size_t k) {
-  Blocks blk{Matrix(k, std::vector<double>(k)), Matrix(k, std::vector<double>(k)), Matrix(k, std::vector<double>(k)),
-             Matrix(k, std::vector<double>(k)), Matrix(k, std::vector<double>(k)), Matrix(k, std::vector<double>(k)),
-             Matrix(k, std::vector<double>(k)), Matrix(k, std::vector<double>(k))};
+Blocks split_matrices(const Matrix &a, const Matrix &b, std::size_t k) {
+  Blocks blk{.a11 = Matrix(k, std::vector<double>(k)),
+             .a12 = Matrix(k, std::vector<double>(k)),
+             .a21 = Matrix(k, std::vector<double>(k)),
+             .a22 = Matrix(k, std::vector<double>(k)),
+             .b11 = Matrix(k, std::vector<double>(k)),
+             .b12 = Matrix(k, std::vector<double>(k)),
+             .b21 = Matrix(k, std::vector<double>(k)),
+             .b22 = Matrix(k, std::vector<double>(k))};
 
   for (std::size_t i = 0; i < k; ++i) {
     for (std::size_t j = 0; j < k; ++j) {
@@ -37,7 +50,7 @@ Blocks SplitMatrices(const Matrix &a, const Matrix &b, std::size_t k) {
   return blk;
 }
 
-Matrix ComputeMi(int task_id, const Blocks &blk) {
+Matrix compute_mi(int task_id, const Blocks &blk) {
   switch (task_id) {
     case 0:
       return Strassen(Add(blk.a11, blk.a22), Add(blk.b11, blk.b22));
@@ -58,13 +71,13 @@ Matrix ComputeMi(int task_id, const Blocks &blk) {
   }
 }
 
-void ComputeMissingTasks(std::vector<Matrix> &m, int start_task, const Blocks &blk) {
+void compute_missing_tasks(std::vector<Matrix> &m, int start_task, const Blocks &blk) {
   for (int task = start_task; task < 7; ++task) {
-    m[task] = ComputeMi(task, blk);
+    m[task] = compute_mi(task, blk);
   }
 }
 
-Matrix AssembleResult(const std::vector<Matrix> &m, std::size_t k) {
+Matrix assemble_result(const std::vector<Matrix> &m, std::size_t k) {
   std::size_t n = 2 * k;
   Matrix c(n, std::vector<double>(n));
 
@@ -79,6 +92,8 @@ Matrix AssembleResult(const std::vector<Matrix> &m, std::size_t k) {
 
   return c;
 }
+
+}  // namespace
 
 GoriachevaKStrassenAlgorithmMPI::GoriachevaKStrassenAlgorithmMPI(const InType &in) {
   SetTypeOfTask(GetStaticTypeOfTask());
@@ -95,7 +110,8 @@ bool GoriachevaKStrassenAlgorithmMPI::PreProcessingImpl() {
 }
 
 Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(const Matrix &a, const Matrix &b) {
-  int rank = 0, size = 1;
+  int rank = 0;
+  int size = 1;
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
@@ -105,7 +121,7 @@ Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(const Matrix &a, const Ma
   }
 
   std::size_t k = n / 2;
-  auto blocks = SplitMatrices(a, b, k);
+  auto blocks = split_matrices(a, b, k);
 
   int num_tasks = std::min(7, size);
   int task_id = rank % num_tasks;
@@ -118,7 +134,7 @@ Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(const Matrix &a, const Ma
 
   Matrix mi;
   if (sub_rank == 0) {
-    mi = ComputeMi(task_id, blocks);
+    mi = compute_mi(task_id, blocks);
   }
 
   MPI_Comm_free(&subcomm);
@@ -142,7 +158,7 @@ Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(const Matrix &a, const Ma
       m[tid] = UnFlatten(buf, k);
     }
 
-    ComputeMissingTasks(m, num_tasks, blocks);
+    compute_missing_tasks(m, num_tasks, blocks);
   } else if (sub_rank == 0) {
     auto buf = Flatten(mi);
     MPI_Send(&task_id, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
@@ -153,7 +169,7 @@ Matrix GoriachevaKStrassenAlgorithmMPI::MpiStrassenTop(const Matrix &a, const Ma
   std::vector<double> flat_c;
 
   if (rank == 0) {
-    c = AssembleResult(m, k);
+    c = assemble_result(m, k);
     flat_c = Flatten(c);
   } else {
     flat_c.resize(n * n);
